@@ -160,6 +160,15 @@
     <string name="keyboard_bottom_padding">鍵盤底部邊距</string>
     <string name="keyboard_side_padding">鍵盤兩側邊距</string>
     <string name="clipboard_suggestion">顯示剪貼簿建議</string>
+    <string name="clipboard_extract_links">智慧擷取剪貼簿內容</string>
+    <string name="clipboard_extract_link">擷取網址</string>
+    <string name="clipboard_extract_phone">擷取電話號碼</string>
+    <string name="clipboard_extract_email">擷取電子郵件</string>
+    <string name="clipboard_extract_address">擷取地址（系統 TextClassifier）</string>
+    <string name="clipboard_extract_otp">擷取驗證碼（系統 TextClassifier）</string>
+    <string name="clipboard_extract_mode_auto">優先系統 TextClassifier（無結果退回正則）</string>
+    <string name="clipboard_extract_mode_text_classifier">僅系統 TextClassifier</string>
+    <string name="clipboard_extract_mode_regex">僅本機正則</string>
     <string name="disable_addon_warn_title">停用附加元件</string>
     <string name="disable_addon_warn_name">停用%1$s且同時：</string>
     <string name="disable_addon_warn_dep">停用%1$s</string>

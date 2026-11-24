@@ -162,6 +162,15 @@
     <string name="keyboard_bottom_padding">键盘底部边距</string>
     <string name="keyboard_side_padding">键盘两侧边距</string>
     <string name="clipboard_suggestion">显示剪贴板提示</string>
+    <string name="clipboard_extract_links">智能提取剪贴板内容</string>
+    <string name="clipboard_extract_link">提取网址</string>
+    <string name="clipboard_extract_phone">提取电话号码</string>
+    <string name="clipboard_extract_email">提取邮箱</string>
+    <string name="clipboard_extract_address">提取地址（系统 TextClassifier）</string>
+    <string name="clipboard_extract_otp">提取验证码（系统 TextClassifier）</string>
+    <string name="clipboard_extract_mode_auto">优先系统 TextClassifier（无结果回退正则）</string>
+    <string name="clipboard_extract_mode_text_classifier">仅系统 TextClassifier</string>
+    <string name="clipboard_extract_mode_regex">仅本地正则</string>
     <string name="disable_addon_warn_title">禁用附加组件</string>
     <string name="disable_addon_warn_name">禁用%1$s将同时：</string>
     <string name="disable_addon_warn_dep">禁用%1$s</string>

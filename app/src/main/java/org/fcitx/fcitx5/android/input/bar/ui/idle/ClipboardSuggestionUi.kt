@@ -6,7 +6,14 @@ package org.fcitx.fcitx5.android.input.bar.ui.idle
 
 import android.content.Context
 import android.text.TextUtils
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
+import android.widget.TextView
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestion
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestionKind
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.utils.rippleDrawable
@@ -14,12 +21,10 @@ import splitties.dimensions.dp
 import splitties.resources.drawable
 import splitties.views.dsl.constraintlayout.after
 import splitties.views.dsl.constraintlayout.before
-import splitties.views.dsl.constraintlayout.centerInParent
 import splitties.views.dsl.constraintlayout.centerVertically
 import splitties.views.dsl.constraintlayout.constraintLayout
 import splitties.views.dsl.constraintlayout.endOfParent
 import splitties.views.dsl.constraintlayout.lParams
-import splitties.views.dsl.constraintlayout.matchConstraints
 import splitties.views.dsl.constraintlayout.startOfParent
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.add
@@ -27,7 +32,6 @@ import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.textView
-import splitties.views.dsl.core.verticalMargin
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 
@@ -65,10 +69,70 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
         background = rippleDrawable(theme.keyPressHighlightColor)
     }
 
-    override val root = constraintLayout {
-        add(suggestionView, lParams(wrapContent, matchConstraints) {
-            centerInParent()
-            verticalMargin = dp(4)
+    private val extractedSuggestions = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+    }
+
+    private val suggestionRow = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(dp(4), 0, dp(4), 0)
+        addView(suggestionView, LinearLayout.LayoutParams(wrapContent, matchParent).apply {
+            setMargins(0, dp(4), 0, dp(4))
         })
+        addView(extractedSuggestions, LinearLayout.LayoutParams(wrapContent, matchParent))
+    }
+
+    override val root = HorizontalScrollView(ctx).apply {
+        isHorizontalScrollBarEnabled = false
+        isFillViewport = true
+        addView(suggestionRow, ViewGroup.LayoutParams(wrapContent, matchParent))
+    }
+
+    /** Extra paste targets are transient: they are never written to clipboard history. */
+    fun setExtractedSuggestions(suggestions: List<ClipboardSuggestion>, onPaste: (String) -> Unit) {
+        extractedSuggestions.removeAllViews()
+        for (suggestion in suggestions) {
+            val iconRes = when (suggestion.kind) {
+                ClipboardSuggestionKind.Link -> R.drawable.ic_clipboard_link
+                ClipboardSuggestionKind.Phone -> R.drawable.ic_clipboard_phone
+                ClipboardSuggestionKind.Email -> R.drawable.ic_clipboard_email
+                ClipboardSuggestionKind.Address -> R.drawable.ic_clipboard_address
+                ClipboardSuggestionKind.Otp -> R.drawable.ic_clipboard_otp
+            }
+            val label = TextView(ctx).apply {
+                text = suggestion.text
+                val iconDrawable = ctx.getDrawable(iconRes)?.mutate()?.apply {
+                    setTint(theme.altKeyTextColor)
+                    setBounds(0, 0, ctx.dp(20), ctx.dp(20))
+                }
+                setCompoundDrawablesRelative(iconDrawable, null, null, null)
+                compoundDrawablePadding = ctx.dp(4)
+                isSingleLine = true
+                maxWidth = dp(160)
+                ellipsize = TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_VERTICAL
+                setTextColor(theme.altKeyTextColor)
+                setPadding(dp(8), 0, dp(8), 0)
+            }
+            val chip = CustomGestureView(ctx).apply {
+                contentDescription = suggestion.text
+                add(label, lParams(wrapContent, matchParent))
+                background = rippleDrawable(theme.keyPressHighlightColor)
+                setOnClickListener { onPaste(suggestion.text) }
+            }
+            extractedSuggestions.addView(
+                chip, LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply {
+                    marginStart = ctx.dp(4)
+                    topMargin = ctx.dp(4)
+                    bottomMargin = ctx.dp(4)
+                }
+            )
+        }
+        root.scrollTo(0, 0)
     }
 }

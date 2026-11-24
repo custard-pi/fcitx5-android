@@ -20,16 +20,19 @@ import android.widget.inline.InlineContentView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent.CandidateListEvent
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestionExtractor
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -98,6 +101,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val prefs = AppPrefs.getInstance()
 
     private val clipboardSuggestion = prefs.clipboard.clipboardSuggestion
+    private val clipboardExtractSuggestions = prefs.clipboard.clipboardExtractSuggestions
+    private val clipboardExtractLink = prefs.clipboard.clipboardExtractLink
+    private val clipboardExtractPhone = prefs.clipboard.clipboardExtractPhone
+    private val clipboardExtractEmail = prefs.clipboard.clipboardExtractEmail
+    private val clipboardExtractAddress = prefs.clipboard.clipboardExtractAddress
+    private val clipboardExtractOtp = prefs.clipboard.clipboardExtractOtp
     private val clipboardItemTimeout = prefs.clipboard.clipboardItemTimeout
     private val clipboardMaskSensitive by prefs.clipboard.clipboardMaskSensitive
     private val expandedCandidateStyle by prefs.keyboard.expandedCandidateStyle
@@ -107,6 +116,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val preferredVoiceInput by prefs.keyboard.preferredVoiceInput
 
     private var clipboardTimeoutJob: Job? = null
+    private var clipboardExtractionJob: Job? = null
 
     private var isClipboardFresh: Boolean = false
     private var isInlineSuggestionPresent: Boolean = false
@@ -118,12 +128,39 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private var numberRowState = NumberRowState.Auto
 
+    private fun updateExtractedSuggestions(entry: ClipboardEntry) {
+        clipboardExtractionJob?.cancel()
+        clipboardExtractionJob = null
+        idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
+        if (entry.text.isEmpty() || entry.sensitive || !clipboardExtractSuggestions.getValue()) return
+        val config = prefs.clipboard.extractConfig()
+        if (!config.hasAnyEnabled()) return
+        clipboardExtractionJob = service.lifecycleScope.launch {
+            val suggestions = withContext(Dispatchers.Default) {
+                ClipboardSuggestionExtractor.extract(context, entry.text, config)
+            }
+            if (!isClipboardFresh) return@launch
+            idleUi.clipboardUi.setExtractedSuggestions(suggestions) { text ->
+                service.commitText(text)
+                clipboardTimeoutJob?.cancel()
+                clipboardTimeoutJob = null
+                clipboardExtractionJob?.cancel()
+                clipboardExtractionJob = null
+                isClipboardFresh = false
+                evalIdleUiState()
+            }
+        }
+    }
+
     @Keep
     private val onClipboardUpdateListener =
         ClipboardManager.OnClipboardUpdateListener {
             if (!clipboardSuggestion.getValue()) return@OnClipboardUpdateListener
             service.lifecycleScope.launch {
                 if (it.text.isEmpty()) {
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
+                    idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
                     isClipboardFresh = false
                 } else {
                     idleUi.clipboardUi.text.text = if (it.sensitive && clipboardMaskSensitive) {
@@ -133,8 +170,24 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     }
                     isClipboardFresh = true
                     launchClipboardTimeoutJob()
+                    updateExtractedSuggestions(it)
                 }
                 evalIdleUiState()
+            }
+        }
+
+    @Keep
+    private val onClipboardExtractSuggestionsUpdateListener =
+        ManagedPreference.OnChangeListener<Any> { _, _ ->
+            service.lifecycleScope.launch {
+                if (!isClipboardFresh) return@launch
+                if (clipboardExtractSuggestions.getValue()) {
+                    ClipboardManager.lastEntry?.let { updateExtractedSuggestions(it) }
+                } else {
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
+                    idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
+                }
             }
         }
 
@@ -146,6 +199,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 evalIdleUiState()
                 clipboardTimeoutJob?.cancel()
                 clipboardTimeoutJob = null
+                clipboardExtractionJob?.cancel()
+                clipboardExtractionJob = null
             }
         }
 
@@ -314,6 +369,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     }
                     clipboardTimeoutJob?.cancel()
                     clipboardTimeoutJob = null
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
                     isClipboardFresh = false
                     evalIdleUiState()
                 }
@@ -428,6 +485,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         }
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
+        clipboardExtractSuggestions.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractLink.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractPhone.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractEmail.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractAddress.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractOtp.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
     }
 
