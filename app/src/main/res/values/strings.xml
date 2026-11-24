@@ -163,6 +163,7 @@
     <string name="keyboard_side_padding">Keyboard side padding</string>
     <string name="clipboard_suggestion">Show clipboard suggestions</string>
     <string name="clipboard_extract_links">Extract smart clipboard suggestions</string>
+    <string name="clipboard_save_extracted">Save extracted items to clipboard history</string>
     <string name="clipboard_extract_link">Extract links</string>
     <string name="clipboard_extract_phone">Extract phone numbers</string>
     <string name="clipboard_extract_email">Extract emails</string>

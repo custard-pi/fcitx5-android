@@ -59,7 +59,8 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         onUpdateListeners.remove(listener)
     }
 
-    private val enabledPref = AppPrefs.getInstance().clipboard.clipboardListening
+    private val clipboardPrefs = AppPrefs.getInstance().clipboard
+    private val enabledPref = clipboardPrefs.clipboardListening
 
     @Keep
     private val enabledListener = ManagedPreference.OnChangeListener<Boolean> { _, value ->
@@ -70,7 +71,31 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         }
     }
 
-    private val limitPref = AppPrefs.getInstance().clipboard.clipboardHistoryLimit
+    private val limitPref = clipboardPrefs.clipboardHistoryLimit
+    private val extractSuggestionsPref = clipboardPrefs.clipboardExtractSuggestions
+    private val saveExtractedPref = clipboardPrefs.clipboardSaveExtractedToHistory
+
+    private data class CachedExtraction(
+        val entryId: Int,
+        val text: String,
+        val config: ClipboardExtractConfig,
+        val suggestions: List<ClipboardSuggestion>
+    )
+
+    @Volatile
+    private var cachedExtraction: CachedExtraction? = null
+
+    fun getCachedSuggestions(
+        entry: ClipboardEntry,
+        config: ClipboardExtractConfig
+    ): List<ClipboardSuggestion>? {
+        val cached = cachedExtraction ?: return null
+        return if (cached.entryId == entry.id && cached.text == entry.text && cached.config == config) {
+            cached.suggestions
+        } else {
+            null
+        }
+    }
 
     @Keep
     private val limitListener = ManagedPreference.OnChangeListener<Int> { _, _ ->
@@ -171,22 +196,57 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
             mutex.withLock {
                 val entry = ClipboardEntry.fromClipData(clip, transformer) ?: return@withLock
                 if (entry.text.isBlank()) return@withLock
+                val extractedConfig = clipboardPrefs.extractConfig()
+                val extracted = if (!entry.sensitive && extractSuggestionsPref.getValue() && extractedConfig.hasAnyEnabled()) {
+                    ClipboardSuggestionExtractor.extract(appContext, entry.text, extractedConfig)
+                } else {
+                    emptyList()
+                }
+                val shouldSaveExtracted = saveExtractedPref.getValue() && extracted.isNotEmpty()
                 try {
-                    clbDao.find(entry.text, entry.sensitive)?.let {
-                        updateLastEntry(it.copy(timestamp = entry.timestamp))
-                        clbDao.updateTime(it.id, entry.timestamp)
-                        return@withLock
-                    }
                     val insertedEntry = clbDb.withTransaction {
-                        val rowId = clbDao.insert(entry)
+                        val limit = limitPref.getValue()
+                        if (shouldSaveExtracted && limit > 1) {
+                            val toSave = extracted.take(limit - 1)
+                            for (i in toSave.indices.reversed()) {
+                                val itemText = toSave[i].text
+                                val itemTs = entry.timestamp - (i + 1)
+                                val existingItem = clbDao.find(itemText, false)
+                                if (existingItem != null) {
+                                    clbDao.updateTime(existingItem.id, itemTs)
+                                } else {
+                                    clbDao.insert(ClipboardEntry(text = itemText, timestamp = itemTs))
+                                }
+                            }
+                        }
+                        val existing = clbDao.find(entry.text, entry.sensitive)
+                        val result = if (existing != null) {
+                            clbDao.updateTime(existing.id, entry.timestamp)
+                            existing.copy(timestamp = entry.timestamp)
+                        } else {
+                            val rowId = clbDao.insert(entry)
+                            // new entry can be deleted immediately if clipboard limit == 0
+                            clbDao.get(rowId) ?: entry
+                        }
                         removeOutdated()
-                        // new entry can be deleted immediately if clipboard limit == 0
-                        clbDao.get(rowId) ?: entry
+                        result
                     }
+                    cachedExtraction = CachedExtraction(
+                        entryId = insertedEntry.id,
+                        text = insertedEntry.text,
+                        config = extractedConfig,
+                        suggestions = extracted
+                    )
                     updateLastEntry(insertedEntry)
                     updateItemCount()
                 } catch (exception: Exception) {
                     Timber.w("Failed to update clipboard database: $exception")
+                    cachedExtraction = CachedExtraction(
+                        entryId = entry.id,
+                        text = entry.text,
+                        config = extractedConfig,
+                        suggestions = extracted
+                    )
                     updateLastEntry(entry)
                 }
             }
@@ -199,7 +259,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         if (unpinned.size > limit) {
             // the last one we will keep
             val last = unpinned
-                .sortedBy { it.id }
+                .sortedBy { it.timestamp }
                 .getOrNull(unpinned.size - limit)
             // delete all unpinned before that, or delete all when limit <= 0
             clbDao.markUnpinnedAsDeletedEarlierThan(last?.timestamp ?: System.currentTimeMillis())

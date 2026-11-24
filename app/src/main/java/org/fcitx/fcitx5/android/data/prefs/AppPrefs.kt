@@ -366,33 +366,34 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         ) { clipboardListening.getValue() }
         val clipboardExtractSuggestions = switch(
             R.string.clipboard_extract_links, "clipboard_extract_links", true
-        ) { clipboardListening.getValue() && clipboardSuggestion.getValue() }
+        ) { clipboardListening.getValue() }
+        val clipboardSaveExtractedToHistory = switch(
+            R.string.clipboard_save_extracted,
+            "clipboard_save_extracted",
+            true
+        ) {
+            clipboardListening.getValue() && clipboardExtractSuggestions.getValue()
+        }
         val clipboardExtractLink = enumList(
             R.string.clipboard_extract_link,
             "clipboard_extract_link",
             ClipboardExtractMode.TextClassifierWithFallback
         ) {
-            clipboardListening.getValue() &&
-                clipboardSuggestion.getValue() &&
-                clipboardExtractSuggestions.getValue()
+            clipboardListening.getValue() && clipboardExtractSuggestions.getValue()
         }
         val clipboardExtractPhone = enumList(
             R.string.clipboard_extract_phone,
             "clipboard_extract_phone",
             ClipboardExtractMode.TextClassifierWithFallback
         ) {
-            clipboardListening.getValue() &&
-                clipboardSuggestion.getValue() &&
-                clipboardExtractSuggestions.getValue()
+            clipboardListening.getValue() && clipboardExtractSuggestions.getValue()
         }
         val clipboardExtractEmail = enumList(
             R.string.clipboard_extract_email,
             "clipboard_extract_email",
             ClipboardExtractMode.TextClassifierWithFallback
         ) {
-            clipboardListening.getValue() &&
-                clipboardSuggestion.getValue() &&
-                clipboardExtractSuggestions.getValue()
+            clipboardListening.getValue() && clipboardExtractSuggestions.getValue()
         }
         val clipboardExtractAddress = switch(
             R.string.clipboard_extract_address,
@@ -401,7 +402,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         ) {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
                 clipboardListening.getValue() &&
-                clipboardSuggestion.getValue() &&
                 clipboardExtractSuggestions.getValue()
         }
         val clipboardExtractOtp = switch(
@@ -411,7 +411,6 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         ) {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
                 clipboardListening.getValue() &&
-                clipboardSuggestion.getValue() &&
                 clipboardExtractSuggestions.getValue()
         }
 
