@@ -77,8 +77,9 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
     private val suggestionRow = LinearLayout(ctx).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
+        setPadding(dp(4), 0, dp(4), 0)
         addView(suggestionView, LinearLayout.LayoutParams(wrapContent, matchParent).apply {
-            setMargins(0, dp(4), dp(4), dp(4))
+            setMargins(0, dp(4), 0, dp(4))
         })
         addView(extractedSuggestions, LinearLayout.LayoutParams(wrapContent, matchParent))
     }
@@ -95,13 +96,11 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
         for (suggestion in suggestions) {
             val iconRes = when (suggestion.kind) {
                 ClipboardSuggestionKind.Link -> R.drawable.ic_clipboard_link
-                ClipboardSuggestionKind.Email -> R.drawable.ic_clipboard_email
                 ClipboardSuggestionKind.Phone -> R.drawable.ic_clipboard_phone
-                ClipboardSuggestionKind.Number -> R.drawable.ic_clipboard_number
+                ClipboardSuggestionKind.Email -> R.drawable.ic_clipboard_email
             }
-            val chip = TextView(ctx).apply {
+            val label = TextView(ctx).apply {
                 text = suggestion.text
-                contentDescription = suggestion.text
                 val iconDrawable = ctx.getDrawable(iconRes)?.mutate()?.apply {
                     setTint(theme.altKeyTextColor)
                     setBounds(0, 0, ctx.dp(20), ctx.dp(20))
@@ -114,6 +113,10 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
                 gravity = Gravity.CENTER_VERTICAL
                 setTextColor(theme.altKeyTextColor)
                 setPadding(dp(8), 0, dp(8), 0)
+            }
+            val chip = CustomGestureView(ctx).apply {
+                contentDescription = suggestion.text
+                add(label, lParams(wrapContent, matchParent))
                 background = rippleDrawable(theme.keyPressHighlightColor)
                 setOnClickListener { onPaste(suggestion.text) }
             }
@@ -122,7 +125,9 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 ).apply {
-                    setMargins(0, ctx.dp(4), ctx.dp(4), ctx.dp(4))
+                    marginStart = ctx.dp(4)
+                    topMargin = ctx.dp(4)
+                    bottomMargin = ctx.dp(4)
                 }
             )
         }

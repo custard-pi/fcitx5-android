@@ -20,12 +20,14 @@ import android.widget.inline.InlineContentView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
@@ -109,6 +111,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val preferredVoiceInput by prefs.keyboard.preferredVoiceInput
 
     private var clipboardTimeoutJob: Job? = null
+    private var clipboardExtractionJob: Job? = null
 
     private var isClipboardFresh: Boolean = false
     private var isInlineSuggestionPresent: Boolean = false
@@ -120,12 +123,37 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private var numberRowState = NumberRowState.Auto
 
+    private fun updateExtractedSuggestions(entry: ClipboardEntry) {
+        clipboardExtractionJob?.cancel()
+        clipboardExtractionJob = null
+        idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
+        if (entry.text.isEmpty() || entry.sensitive || !clipboardExtractSuggestions.getValue()) return
+        clipboardExtractionJob = service.lifecycleScope.launch {
+            val suggestions = withContext(Dispatchers.Default) {
+                ClipboardSuggestionExtractor.extract(entry.text)
+            }
+            if (!isClipboardFresh) return@launch
+            idleUi.clipboardUi.setExtractedSuggestions(suggestions) { text ->
+                service.commitText(text)
+                clipboardTimeoutJob?.cancel()
+                clipboardTimeoutJob = null
+                clipboardExtractionJob?.cancel()
+                clipboardExtractionJob = null
+                isClipboardFresh = false
+                evalIdleUiState()
+            }
+        }
+    }
+
     @Keep
     private val onClipboardUpdateListener =
         ClipboardManager.OnClipboardUpdateListener {
             if (!clipboardSuggestion.getValue()) return@OnClipboardUpdateListener
             service.lifecycleScope.launch {
                 if (it.text.isEmpty()) {
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
+                    idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
                     isClipboardFresh = false
                 } else {
                     idleUi.clipboardUi.text.text = if (it.sensitive && clipboardMaskSensitive) {
@@ -133,18 +161,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     } else {
                         it.text.take(42)
                     }
-                    idleUi.clipboardUi.setExtractedSuggestions(
-                        if (it.sensitive || !clipboardExtractSuggestions.getValue()) emptyList()
-                        else ClipboardSuggestionExtractor.extract(it.text)
-                    ) { url ->
-                        service.commitText(url)
-                        clipboardTimeoutJob?.cancel()
-                        clipboardTimeoutJob = null
-                        isClipboardFresh = false
-                        evalIdleUiState()
-                    }
                     isClipboardFresh = true
                     launchClipboardTimeoutJob()
+                    updateExtractedSuggestions(it)
                 }
                 evalIdleUiState()
             }
@@ -152,9 +171,16 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     @Keep
     private val onClipboardExtractSuggestionsUpdateListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, _ ->
-            if (isClipboardFresh) {
-                ClipboardManager.lastEntry?.let { onClipboardUpdateListener.onUpdate(it) }
+        ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+            service.lifecycleScope.launch {
+                if (!isClipboardFresh) return@launch
+                if (enabled) {
+                    ClipboardManager.lastEntry?.let { updateExtractedSuggestions(it) }
+                } else {
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
+                    idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
+                }
             }
         }
 
@@ -166,6 +192,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 evalIdleUiState()
                 clipboardTimeoutJob?.cancel()
                 clipboardTimeoutJob = null
+                clipboardExtractionJob?.cancel()
+                clipboardExtractionJob = null
             }
         }
 
@@ -334,6 +362,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     }
                     clipboardTimeoutJob?.cancel()
                     clipboardTimeoutJob = null
+                    clipboardExtractionJob?.cancel()
+                    clipboardExtractionJob = null
                     isClipboardFresh = false
                     evalIdleUiState()
                 }
