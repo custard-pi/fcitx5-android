@@ -12,6 +12,8 @@ import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.InputFeedbacks.InputFeedbackMode
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardExtractConfig
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardExtractMode
 import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
@@ -344,6 +346,61 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val clipboardExtractSuggestions = switch(
             R.string.clipboard_extract_links, "clipboard_extract_links", true
         ) { clipboardListening.getValue() && clipboardSuggestion.getValue() }
+        val clipboardExtractLink = enumList(
+            R.string.clipboard_extract_link,
+            "clipboard_extract_link",
+            ClipboardExtractMode.TextClassifierWithFallback
+        ) {
+            clipboardListening.getValue() &&
+                clipboardSuggestion.getValue() &&
+                clipboardExtractSuggestions.getValue()
+        }
+        val clipboardExtractPhone = enumList(
+            R.string.clipboard_extract_phone,
+            "clipboard_extract_phone",
+            ClipboardExtractMode.TextClassifierWithFallback
+        ) {
+            clipboardListening.getValue() &&
+                clipboardSuggestion.getValue() &&
+                clipboardExtractSuggestions.getValue()
+        }
+        val clipboardExtractEmail = enumList(
+            R.string.clipboard_extract_email,
+            "clipboard_extract_email",
+            ClipboardExtractMode.TextClassifierWithFallback
+        ) {
+            clipboardListening.getValue() &&
+                clipboardSuggestion.getValue() &&
+                clipboardExtractSuggestions.getValue()
+        }
+        val clipboardExtractAddress = switch(
+            R.string.clipboard_extract_address,
+            "clipboard_extract_address",
+            true
+        ) {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                clipboardListening.getValue() &&
+                clipboardSuggestion.getValue() &&
+                clipboardExtractSuggestions.getValue()
+        }
+        val clipboardExtractOtp = switch(
+            R.string.clipboard_extract_otp,
+            "clipboard_extract_otp",
+            true
+        ) {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                clipboardListening.getValue() &&
+                clipboardSuggestion.getValue() &&
+                clipboardExtractSuggestions.getValue()
+        }
+
+        fun extractConfig() = ClipboardExtractConfig(
+            linkMode = clipboardExtractLink.getValue(),
+            phoneMode = clipboardExtractPhone.getValue(),
+            emailMode = clipboardExtractEmail.getValue(),
+            extractAddress = clipboardExtractAddress.getValue(),
+            extractOtp = clipboardExtractOtp.getValue()
+        )
         val clipboardItemTimeout = int(
             R.string.clipboard_suggestion_timeout,
             "clipboard_item_timeout",

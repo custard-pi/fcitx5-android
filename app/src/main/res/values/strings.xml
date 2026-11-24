@@ -160,7 +160,15 @@
     <string name="keyboard_bottom_padding">Keyboard bottom padding</string>
     <string name="keyboard_side_padding">Keyboard side padding</string>
     <string name="clipboard_suggestion">Show clipboard suggestions</string>
-    <string name="clipboard_extract_links">Extract links, phone numbers and emails from clipboard</string>
+    <string name="clipboard_extract_links">Extract smart clipboard suggestions</string>
+    <string name="clipboard_extract_link">Extract links</string>
+    <string name="clipboard_extract_phone">Extract phone numbers</string>
+    <string name="clipboard_extract_email">Extract emails</string>
+    <string name="clipboard_extract_address">Extract addresses (TextClassifier)</string>
+    <string name="clipboard_extract_otp">Extract OTP codes (TextClassifier)</string>
+    <string name="clipboard_extract_mode_auto">TextClassifier (fallback to regex)</string>
+    <string name="clipboard_extract_mode_text_classifier">TextClassifier only</string>
+    <string name="clipboard_extract_mode_regex">Regex only</string>
     <string name="disable_addon_warn_title">Disable Addon</string>
     <string name="disable_addon_warn_name">Disabling %1$s will also:</string>
     <string name="disable_addon_warn_dep">Disable %1$s</string>

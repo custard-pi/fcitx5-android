@@ -102,6 +102,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private val clipboardSuggestion = prefs.clipboard.clipboardSuggestion
     private val clipboardExtractSuggestions = prefs.clipboard.clipboardExtractSuggestions
+    private val clipboardExtractLink = prefs.clipboard.clipboardExtractLink
+    private val clipboardExtractPhone = prefs.clipboard.clipboardExtractPhone
+    private val clipboardExtractEmail = prefs.clipboard.clipboardExtractEmail
+    private val clipboardExtractAddress = prefs.clipboard.clipboardExtractAddress
+    private val clipboardExtractOtp = prefs.clipboard.clipboardExtractOtp
     private val clipboardItemTimeout = prefs.clipboard.clipboardItemTimeout
     private val clipboardMaskSensitive by prefs.clipboard.clipboardMaskSensitive
     private val expandedCandidateStyle by prefs.keyboard.expandedCandidateStyle
@@ -128,9 +133,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         clipboardExtractionJob = null
         idleUi.clipboardUi.setExtractedSuggestions(emptyList()) {}
         if (entry.text.isEmpty() || entry.sensitive || !clipboardExtractSuggestions.getValue()) return
+        val config = prefs.clipboard.extractConfig()
+        if (!config.hasAnyEnabled()) return
         clipboardExtractionJob = service.lifecycleScope.launch {
             val suggestions = withContext(Dispatchers.Default) {
-                ClipboardSuggestionExtractor.extract(entry.text)
+                ClipboardSuggestionExtractor.extract(context, entry.text, config)
             }
             if (!isClipboardFresh) return@launch
             idleUi.clipboardUi.setExtractedSuggestions(suggestions) { text ->
@@ -171,10 +178,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     @Keep
     private val onClipboardExtractSuggestionsUpdateListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+        ManagedPreference.OnChangeListener<Any> { _, _ ->
             service.lifecycleScope.launch {
                 if (!isClipboardFresh) return@launch
-                if (enabled) {
+                if (clipboardExtractSuggestions.getValue()) {
                     ClipboardManager.lastEntry?.let { updateExtractedSuggestions(it) }
                 } else {
                     clipboardExtractionJob?.cancel()
@@ -479,6 +486,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
         clipboardExtractSuggestions.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractLink.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractPhone.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractEmail.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractAddress.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
+        clipboardExtractOtp.registerOnChangeListener(onClipboardExtractSuggestionsUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
     }
 

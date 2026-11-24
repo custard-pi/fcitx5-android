@@ -4,10 +4,15 @@
  */
 package org.fcitx.fcitx5.android
 
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardExtractConfig
+import org.fcitx.fcitx5.android.data.clipboard.ClipboardExtractMode
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestion
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestionExtractor
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardSuggestionKind
+import org.fcitx.fcitx5.android.data.clipboard.ExtractedSpan
+import org.fcitx.fcitx5.android.data.clipboard.TextClassifierProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ClipboardSuggestionExtractorTest {
@@ -107,5 +112,70 @@ class ClipboardSuggestionExtractorTest {
             listOf(ClipboardSuggestion(ClipboardSuggestionKind.Email, "user.name@sub.example.com")),
             ClipboardSuggestionExtractor.extract(text)
         )
+    }
+
+    @Test
+    fun `prefers text classifier per category and falls back to regex when category has no results`() {
+        val text = "验证码 482910，地址：北京市海淀区中关村大街1号，链接 https://example.com，手机 13800138000"
+        val otpStart = text.indexOf("482910")
+        val addrStart = text.indexOf("北京市海淀区中关村大街1号")
+        val linkStart = text.indexOf("https://example.com")
+
+        val fakeProvider = TextClassifierProvider { _, _ ->
+            listOf(
+                ExtractedSpan(otpStart, otpStart + 6, ClipboardSuggestionKind.Otp, "482910"),
+                ExtractedSpan(addrStart, addrStart + 13, ClipboardSuggestionKind.Address, "北京市海淀区中关村大街1号"),
+                ExtractedSpan(linkStart, linkStart + 19, ClipboardSuggestionKind.Link, "https://example.com")
+                // Intentionally omit Phone so Phone falls back to regex
+            )
+        }
+
+        assertEquals(
+            listOf(
+                ClipboardSuggestion(ClipboardSuggestionKind.Otp, "482910"),
+                ClipboardSuggestion(ClipboardSuggestionKind.Address, "北京市海淀区中关村大街1号"),
+                ClipboardSuggestion(ClipboardSuggestionKind.Link, "https://example.com"),
+                ClipboardSuggestion(ClipboardSuggestionKind.Phone, "13800138000")
+            ),
+            ClipboardSuggestionExtractor.extract(text, ClipboardExtractConfig(), fakeProvider)
+        )
+    }
+
+    @Test
+    fun `respects per category text classifier only regex only and disabled modes`() {
+        val text = "链接 https://example.com 手机 13800138000 邮箱 test@example.com"
+        val config = ClipboardExtractConfig(
+            linkMode = ClipboardExtractMode.TextClassifierOnly,
+            phoneMode = ClipboardExtractMode.RegexOnly,
+            emailMode = ClipboardExtractMode.Disabled,
+            extractAddress = false,
+            extractOtp = false
+        )
+        val emptyProvider = TextClassifierProvider { _, _ -> emptyList() }
+        assertEquals(
+            listOf(ClipboardSuggestion(ClipboardSuggestionKind.Phone, "13800138000")),
+            ClipboardSuggestionExtractor.extract(text, config, emptyProvider)
+        )
+
+        var providerCalled = false
+        val regexOnlyConfig = ClipboardExtractConfig(
+            linkMode = ClipboardExtractMode.RegexOnly,
+            phoneMode = ClipboardExtractMode.RegexOnly,
+            emailMode = ClipboardExtractMode.Disabled,
+            extractAddress = false,
+            extractOtp = false
+        )
+        val spyProvider = TextClassifierProvider { _, _ ->
+            providerCalled = true
+            emptyList()
+        }
+        assertEquals(
+            listOf(
+                ClipboardSuggestion(ClipboardSuggestionKind.Link, "https://example.com"),
+                ClipboardSuggestion(ClipboardSuggestionKind.Phone, "13800138000")
+            ),
+            ClipboardSuggestionExtractor.extract(text, regexOnlyConfig, spyProvider)
+        )
+        assertFalse("TextClassifier should not be invoked when no category uses it", providerCalled)
     }
 }

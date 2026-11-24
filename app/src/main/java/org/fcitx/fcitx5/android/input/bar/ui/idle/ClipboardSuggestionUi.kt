@@ -98,6 +98,8 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
                 ClipboardSuggestionKind.Link -> R.drawable.ic_clipboard_link
                 ClipboardSuggestionKind.Phone -> R.drawable.ic_clipboard_phone
                 ClipboardSuggestionKind.Email -> R.drawable.ic_clipboard_email
+                ClipboardSuggestionKind.Address -> R.drawable.ic_clipboard_address
+                ClipboardSuggestionKind.Otp -> R.drawable.ic_clipboard_otp
             }
             val label = TextView(ctx).apply {
                 text = suggestion.text
