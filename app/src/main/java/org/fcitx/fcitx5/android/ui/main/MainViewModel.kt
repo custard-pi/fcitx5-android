@@ -10,6 +10,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.utils.appContext
+import java.util.UUID
 
 class MainViewModel : ViewModel() {
 
@@ -21,7 +22,9 @@ class MainViewModel : ViewModel() {
 
     val toolbarButton = MutableLiveData(ButtonMode.NONE)
 
-    val fcitx: FcitxConnection = FcitxDaemon.connect(javaClass.name)
+    private val clientName = "${javaClass.name}#${UUID.randomUUID()}"
+
+    val fcitx: FcitxConnection = FcitxDaemon.connect(clientName)
 
     fun setToolbarTitle(title: String) {
         toolbarTitle.value = title
@@ -36,6 +39,6 @@ class MainViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        FcitxDaemon.disconnect(javaClass.name)
+        FcitxDaemon.disconnect(clientName)
     }
 }
