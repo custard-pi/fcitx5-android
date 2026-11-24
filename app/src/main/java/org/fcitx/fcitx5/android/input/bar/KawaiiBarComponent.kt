@@ -135,20 +135,25 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         if (entry.text.isEmpty() || entry.sensitive || !clipboardExtractSuggestions.getValue()) return
         val config = prefs.clipboard.extractConfig()
         if (!config.hasAnyEnabled()) return
+        val onPaste: (String) -> Unit = { text ->
+            service.commitText(text)
+            clipboardTimeoutJob?.cancel()
+            clipboardTimeoutJob = null
+            clipboardExtractionJob?.cancel()
+            clipboardExtractionJob = null
+            isClipboardFresh = false
+            evalIdleUiState()
+        }
+        ClipboardManager.getCachedSuggestions(entry, config)?.let { cached ->
+            idleUi.clipboardUi.setExtractedSuggestions(cached, onPaste)
+            return
+        }
         clipboardExtractionJob = service.lifecycleScope.launch {
             val suggestions = withContext(Dispatchers.Default) {
                 ClipboardSuggestionExtractor.extract(context, entry.text, config)
             }
             if (!isClipboardFresh) return@launch
-            idleUi.clipboardUi.setExtractedSuggestions(suggestions) { text ->
-                service.commitText(text)
-                clipboardTimeoutJob?.cancel()
-                clipboardTimeoutJob = null
-                clipboardExtractionJob?.cancel()
-                clipboardExtractionJob = null
-                isClipboardFresh = false
-                evalIdleUiState()
-            }
+            idleUi.clipboardUi.setExtractedSuggestions(suggestions, onPaste)
         }
     }
 
